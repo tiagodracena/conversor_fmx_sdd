@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Conversor para Markdown</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    .subtitle {
+      color: #94a3b8;
+      margin-bottom: 36px;
+      font-size: 0.95rem;
+    }
+
+    .card {
+      background: #1e2130;
+      border: 1px solid #2d3348;
+      border-radius: 12px;
+      padding: 32px;
+      width: 100%;
+      max-width: 680px;
+    }
+
+    .drop-zone {
+      border: 2px dashed #3b4262;
+      border-radius: 10px;
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .drop-zone.dragover {
+      border-color: #6366f1;
+      background: #1a1d2e;
+    }
+
+    .drop-zone input[type="file"] {
+      display: none;
+    }
+
+    .drop-icon { font-size: 2.5rem; margin-bottom: 12px; }
+
+    .drop-zone p {
+      color: #94a3b8;
+      font-size: 0.9rem;
+      margin-top: 8px;
+    }
+
+    .drop-zone strong { color: #e2e8f0; }
+
+    .btn {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 10px 28px;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-primary { background: #6366f1; color: #fff; width: 100%; margin-top: 16px; padding: 12px; font-size: 1rem; }
+    .btn-download { background: #10b981; color: #fff; }
+
+    .status {
+      margin-top: 20px;
+      font-size: 0.9rem;
+      color: #94a3b8;
+      min-height: 20px;
+    }
+
+    .status.error { color: #f87171; }
+    .status.success { color: #34d399; }
+
+    .preview-box {
+      display: none;
+      margin-top: 24px;
+      background: #141720;
+      border: 1px solid #2d3348;
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .preview-box h3 {
+      font-size: 0.85rem;
+      color: #6366f1;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 10px;
+    }
+
+    .preview-box pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    .file-name {
+      margin-top: 12px;
+      color: #6366f1;
+      font-size: 0.9rem;
+    }
+
+    .spinner {
+      display: none;
+      width: 18px;
+      height: 18px;
+      border: 2px solid #ffffff44;
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <h1>📄 Conversor para Markdown</h1>
+  <p class="subtitle">Suporta PDF, DOCX, TXT, XLS e XLSX</p>
+
+  <div class="card">
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-icon">☁️</div>
+      <strong>Arraste e solte o arquivo aqui</strong>
+      <p>ou clique para selecionar</p>
+      <p style="margin-top:10px; font-size:0.8rem;">PDF · DOCX · TXT · XLS · XLSX — até 50 MB</p>
+      <input type="file" id="fileInput" accept=".pdf,.docx,.txt,.xls,.xlsx" />
+    </div>
+
+    <div class="file-name" id="fileName"></div>
+    <div class="status" id="status"></div>
+
+    <button class="btn btn-primary" id="convertBtn" disabled>
+      <div class="spinner" id="spinner"></div>
+      <span id="btnText">Converter para .md</span>
+    </button>
+
+    <div class="preview-box" id="previewBox">
+      <h3>Prévia (primeiros 3000 caracteres)</h3>
+      <pre id="previewContent"></pre>
+      <div class="actions">
+        <button class="btn btn-download" id="downloadBtn">⬇ Baixar .md</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const dropZone    = document.getElementById('dropZone');
+    const fileInput   = document.getElementById('fileInput');
+    const convertBtn  = document.getElementById('convertBtn');
+    const btnText     = document.getElementById('btnText');
+    const spinner     = document.getElementById('spinner');
+    const status      = document.getElementById('status');
+    const fileName    = document.getElementById('fileName');
+    const previewBox  = document.getElementById('previewBox');
+    const previewContent = document.getElementById('previewContent');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    let selectedFile = null;
+    let downloadId   = null;
+    let downloadName = null;
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) setFile(file);
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) setFile(fileInput.files[0]);
+    });
+
+    function setFile(file) {
+      selectedFile = file;
+      fileName.textContent = `📎 ${file.name}`;
+      convertBtn.disabled = false;
+      status.textContent = '';
+      status.className = 'status';
+      previewBox.style.display = 'none';
+      downloadId = null;
+    }
+
+    convertBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+
+      convertBtn.disabled = true;
+      spinner.style.display = 'block';
+      btnText.textContent = 'Convertendo...';
+      status.textContent = '';
+      status.className = 'status';
+      previewBox.style.display = 'none';
+
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      try {
+        const res = await fetch('/convert', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (!res.ok) {
+          status.textContent = '❌ ' + (data.error || 'Erro desconhecido.');
+          status.className = 'status error';
+        } else {
+          downloadId   = data.download_id;
+          downloadName = data.filename;
+          previewContent.textContent = data.preview + (data.preview.length >= 3000 ? '\n\n[... conteúdo truncado na prévia ...]' : '');
+          previewBox.style.display = 'block';
+          status.textContent = '✅ Conversão concluída!';
+          status.className = 'status success';
+        }
+      } catch (err) {
+        status.textContent = '❌ Falha na requisição: ' + err.message;
+        status.className = 'status error';
+      } finally {
+        spinner.style.display = 'none';
+        btnText.textContent = 'Converter para .md';
+        convertBtn.disabled = false;
+      }
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      if (downloadId) window.location.href = `/download/${downloadId}`;
+    });
+  </script>
+</body>
+</html>
