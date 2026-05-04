@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY convert.py app.py ./
 COPY templates/ templates/
+COPY static/ static/
 
 RUN mkdir -p /tmp/converter/uploads /tmp/converter/outputs
 
